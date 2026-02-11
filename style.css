@@ -83,3 +83,7 @@ a, a:visited {
 span {
   text-decoration: underline;
 }
+
+div{
+  padding: 0 10vw;
+}
