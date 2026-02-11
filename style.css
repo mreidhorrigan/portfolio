@@ -1,6 +1,10 @@
 :root {
-  --decorative-color: #e642f5;
-  --complimentary-color: #51f542;
+  /* https://www.canva.com/colors/color-wheel/ */
+  
+  --zeroeth-color: #040A7B;
+  --first-color: #F7088C;
+  --second-color: #EB2114;
+  --third-color: #08F773;
 }
 
 *{
@@ -12,7 +16,7 @@
 
 body {
   
-  color: black;
+  color: var(--zeroeth-color);
   
   height: 100%;
   display: flex;
@@ -32,7 +36,7 @@ body {
   
   /*
   background: radial-gradient(circle at 150% 50%, 
-    var(--decorative-color) 1%,
+    var(--first-color) 1%,
     transparent 100%
   );
   */
@@ -47,10 +51,10 @@ p::first-letter {
   font-weight: bold;
   font-size: 2em;
   line-height: 1em;
-  background: var(--decorative-color);
+  background: var(--first-color);
   
   background: radial-gradient(circle at 150% 50%, 
-    var(--decorative-color) 1%,
+    var(--first-color) 1%,
     transparent 100%
   );
   
@@ -68,8 +72,8 @@ a, a:visited {
 }
 
 ::selection{
-  background: var(--complimentary-color);
-  color: #4251F5;
+  background: var(--second-color);
+  color: var(--third-color);
 }
 
 span {
