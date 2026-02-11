@@ -52,6 +52,10 @@ p::first-letter {
 }
 
 p a {
-  font-family: "Courier New", "Lucida Console", monospace !important;
+  font-family: "Courier New", "Lucida Console", monospace;
   padding: 0;
+}
+
+span {
+  text-decoration: underline;
 }
