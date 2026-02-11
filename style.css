@@ -25,7 +25,9 @@ body {
   
   font-family: 'Trebuchet MS', Tahoma, sans-serif;
   
+  /*
   mix-blend-mode: color-burn;
+  */
   
   /*
   background: radial-gradient(circle at 150% 50%, 
@@ -49,7 +51,7 @@ p::first-letter {
   margin: 0;
 }
 
-a {
-  font-family: "Courier New", "Lucida Console", monospace;
+p a {
+  font-family: "Courier New", "Lucida Console", monospace !important;
   padding: 0;
 }
