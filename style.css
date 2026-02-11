@@ -4,7 +4,8 @@
 
 *{
   /* normalize */
-  margin: 0.5em;
+  margin: 0;
+  padding: 0;
   
 }
 
@@ -13,7 +14,6 @@ body {
   color: black;
   
   height: 100%;
-  margin: 1em 5vw;
   display: flex;
   flex-flow: row wrap;
   /* horiz center */
@@ -36,6 +36,10 @@ body {
 
 }
 
+h1, p {
+  margin: 1em;
+}
+
 p::first-letter {
     font-weight: bold;
     font-size: 2em;
@@ -43,4 +47,9 @@ p::first-letter {
   background: var(--dec-color);
   padding: 0 0 0 1em;
   margin: 0;
+}
+
+a {
+  font-family: "Courier New", "Lucida Console", monospace;
+  padding: 0:
 }
