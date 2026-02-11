@@ -1,5 +1,6 @@
 :root {
-  --dec-color: pink;
+  --decorative-color: #e642f5;
+  --complimentary-color: #51f542;
 }
 
 *{
@@ -31,7 +32,7 @@ body {
   
   /*
   background: radial-gradient(circle at 150% 50%, 
-    var(--dec-color) 1%,
+    var(--decorative-color) 1%,
     transparent 100%
   );
   */
@@ -43,10 +44,16 @@ h1, p {
 }
 
 p::first-letter {
-    font-weight: bold;
-    font-size: 2em;
-    line-height: 1em;
-  background: var(--dec-color);
+  font-weight: bold;
+  font-size: 2em;
+  line-height: 1em;
+  background: var(--decorative-color);
+  
+  background: radial-gradient(circle at 150% 50%, 
+    var(--decorative-color) 1%,
+    transparent 100%
+  );
+  
   padding: 0 0 0 1em;
   margin: 0;
 }
@@ -54,6 +61,15 @@ p::first-letter {
 p a {
   font-family: "Courier New", "Lucida Console", monospace;
   padding: 0;
+}
+
+a, a:visited {
+  color: #e642f5;
+}
+
+::selection{
+  background: var(--complimentary-color);
+  color: #4251F5;
 }
 
 span {
