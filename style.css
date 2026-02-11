@@ -3,8 +3,8 @@
   
   --zeroeth-color: #040A7B;
   --first-color: #F7088C;
-  --second-color: #EB2114;
-  --third-color: #08F773;
+  --second-color: #F60983;
+  --third-color: #090DF6;
 }
 
 *{
@@ -47,6 +47,10 @@ h1, p {
   margin: 1em;
 }
 
+p{
+  color: black;
+}
+
 p::first-letter {
   font-weight: bold;
   font-size: 2em;
@@ -68,7 +72,7 @@ p a {
 }
 
 a, a:visited {
-  color: #e642f5;
+  color: var(--first-color);
 }
 
 ::selection{
