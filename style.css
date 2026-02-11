@@ -1,4 +1,44 @@
+:root {
+  --dec-color: pink;
+}
+
+*{
+  /* normalize */
+  margin: 0.5em;
+  
+}
+
 body {
-  text-align: center;
-  color: red;
+  
+  color: black;
+  
+  height: 100%;
+  margin: 5vh 5vw;
+  display: flex;
+  flex-flow: row wrap;
+  /* horiz center */
+  justify-content: center;
+  /* vert center */
+  align-items: center;
+  /* viewport height */
+  height: 100vh;
+  
+  font-family: 'Trebuchet MS', Tahoma, sans-serif;
+   
+  background: radial-gradient(circle at 150% 50%, 
+    var(--dec-color) 5%,
+    transparent 100%
+  );
+  
+  mix-blend-mode: color-burn;
+
+}
+
+p::first-letter {
+    font-weight: bold;
+    font-size: 2em;
+    line-height: 1em;
+  background: var(--dec-color);
+  padding: 0 0 0 1em;
+  margin: 0;
 }
