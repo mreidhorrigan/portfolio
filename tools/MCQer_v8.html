@@ -1,1 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MCQer v7</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    /* ── Palette ──────────────────────────────────────────────────────────────
+       Navy        #0C2F56   primary text, buttons, badges
+       Deep Blue   #152A4E   button hover
+       Dark Red    #B2241A   eyebrow labels, dragover, error
+       Gold        #F2CC56   progress bar, gold accents
+       Gold dark   #D4A800   confirmed upload border (contrast on white)
+       Off-white   #F7F5F0   page background
+       Blue tint   #EEF3F8   version row, preview bg
+    ────────────────────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, sans-serif;
+      background: #F7F5F0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .card {
+      background: #FFFFFF;
+      border-radius: 12px;
+      box-shadow: 0 4px 28px rgba(12,47,86,0.13);
+      padding: 2.5rem 2.5rem 2rem;
+      max-width: 600px;
+      width: 100%;
+    }
 
+    /* ── Masthead ─────────────────────────────────────────────────────────── */
+    .masthead { margin-bottom: 1.75rem; }
+    .masthead .eyebrow {
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: #B2241A; margin-bottom: 0.3rem;
+    }
+    h1 {
+      font-size: 1.8rem; font-weight: 800; color: #0C2F56;
+      margin-bottom: 0.2rem; line-height: 1.15;
+    }
+    h1 em { font-style: normal; color: #B2241A; }
+    .subtitle { color: #4a5e74; font-size: 0.92rem; line-height: 1.5; }
+
+    /* ── Upload sections ─────────────────────────────────────────────────── */
+    .upload-section { margin-bottom: 1.25rem; }
+    .upload-label {
+      font-size: 0.72rem; font-weight: 700; color: #B2241A;
+      text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.4rem;
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    .upload-label .optional {
+      font-weight: 500; text-transform: none; letter-spacing: 0;
+      background: #EEF3F8; color: #0C2F56; font-size: 0.72rem;
+      padding: 0.1rem 0.45rem; border-radius: 4px;
+    }
+    .drop-zone {
+      border: 2px dashed #C8D8E8;
+      border-radius: 10px;
+      padding: 1.4rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.18s, background 0.18s;
+      color: #0C2F56;
+      background: #FFFFFF;
+    }
+    .drop-zone.compact { padding: 0.9rem 1.5rem; }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: #B2241A;
+      background: #fdf3f2;
+    }
+    .drop-zone.has-file {
+      border-color: #D4A800;
+      border-style: solid;
+      background: #fffbee;
+    }
+    .drop-zone svg { margin-bottom: 0.5rem; }
+    .drop-zone p { font-size: 0.9rem; color: #0C2F56; }
+    .drop-zone span.cta { color: #0C2F56; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+    .drop-zone .file-name { color: #7a6000; font-weight: 700; font-size: 0.88rem; }
+    .drop-zone .hint { font-size: 0.76rem; color: #7a8fa6; margin-top: 0.3rem; }
+    input[type=file] { display: none; }
+
+    /* ── Status bar ──────────────────────────────────────────────────────── */
+    #status {
+      font-size: 0.88rem; margin-bottom: 1rem; padding: 0.5rem 0.8rem;
+      border-radius: 6px; display: none; border-left: 3px solid transparent;
+    }
+    #status.info    { display: block; background: #EEF3F8; color: #0C2F56; border-color: #0C2F56; }
+    #status.success { display: block; background: #fffbee; color: #7a6000; border-color: #D4A800; }
+    #status.error   { display: block; background: #fdf3f2; color: #B2241A; border-color: #B2241A; }
+
+    /* ── Question preview ────────────────────────────────────────────────── */
+    #preview { display: none; margin-bottom: 1.25rem; }
+    #preview .preview-header {
+      font-size: 0.72rem; font-weight: 700; color: #B2241A;
+      text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.5rem;
+    }
+    #preview-list {
+      max-height: 180px; overflow-y: auto;
+      border: 1px solid #C8D8E8; border-radius: 8px;
+      padding: 0.75rem; font-size: 0.85rem; color: #0C2F56; line-height: 1.5;
+      background: #EEF3F8;
+    }
+    .q-item { margin-bottom: 0.75rem; padding-bottom: 0.75rem; border-bottom: 1px solid #C8D8E8; }
+    .q-item:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+    .q-text { font-weight: 700; color: #0C2F56; }
+    .q-opts { color: #4a5e74; font-size: 0.82rem; margin-top: 0.2rem; }
+    .q-opts .no-opts { font-style: italic; color: #7a8fa6; }
+
+    /* ── Format reference ────────────────────────────────────────────────── */
+    #format-ref {
+      display: none; margin-bottom: 1.25rem;
+      border: 1px solid #C8D8E8; border-radius: 8px; overflow: hidden;
+    }
+    #format-ref .format-header {
+      font-size: 0.72rem; font-weight: 700; color: #FFFFFF;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      background: #0C2F56; padding: 0.4rem 0.75rem;
+    }
+    #format-ref .format-body {
+      background: #FFFFFF; padding: 0.85rem 1rem; font-size: 0.83rem;
+      color: #0C2F56; line-height: 1.7;
+    }
+    .fmt-version {
+      text-align: center; font-weight: 800; font-size: 1rem;
+      color: #0C2F56; border-bottom: 1px solid #C8D8E8;
+      padding-bottom: 0.5rem; margin-bottom: 0.6rem;
+    }
+    .fmt-q  { font-weight: 700; color: #0C2F56; margin-bottom: 0.25rem; }
+    .fmt-opt { color: #0C2F56; padding-left: 1.2rem; line-height: 1.6; }
+    .fmt-opt.answer { color: #7a6000; }
+    .fmt-opt.answer::before { content: '[Answer.] '; font-size: 0.75rem; color: #D4A800; font-weight: 700; }
+    .fmt-divider {
+      border: none; border-top: 1px dashed #C8D8E8;
+      margin: 0.6rem 0;
+    }
+    .fmt-sa { font-weight: 700; color: #0C2F56; margin-bottom: 0.2rem; }
+    .fmt-sa-note { color: #7a8fa6; font-style: italic; font-size: 0.78rem; }
+    .fmt-pb {
+      text-align: center; font-size: 0.75rem; color: #B2241A;
+      border: 1px dashed #B2241A; border-radius: 4px;
+      padding: 0.2rem 0.5rem; margin: 0.4rem auto; display: inline-block;
+    }
+
+    /* ── Version selector ────────────────────────────────────────────────── */
+    .version-row {
+      display: none; align-items: center; gap: 1rem; margin-bottom: 1.25rem;
+      padding: 0.85rem 1rem; background: #EEF3F8;
+      border: 1px solid #C8D8E8; border-radius: 8px;
+    }
+    .version-row label { font-size: 0.9rem; font-weight: 700; color: #0C2F56; white-space: nowrap; }
+    .version-stepper { display: flex; align-items: center; gap: 0.5rem; }
+    .version-stepper button {
+      width: 2rem; height: 2rem; padding: 0; border-radius: 6px;
+      background: #0C2F56; color: #FFFFFF; font-size: 1.1rem; font-weight: 700;
+      line-height: 1; flex: none; border: none; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .version-stepper button:hover { background: #152A4E; }
+    .version-stepper button:disabled { opacity: 0.35; cursor: not-allowed; }
+    #version-display { font-size: 1.15rem; font-weight: 800; color: #0C2F56; min-width: 1.5rem; text-align: center; }
+    .version-badges { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-left: auto; }
+    .badge {
+      font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.55rem;
+      border-radius: 999px; background: #0C2F56; color: #F2CC56;
+      border: 1px solid #0C2F56; letter-spacing: 0.03em;
+    }
+
+    /* ── Generate button ─────────────────────────────────────────────────── */
+    #btn-row { display: none; margin-bottom: 0.75rem; }
+    #btn-generate {
+      width: 100%; padding: 0.9rem; border: none; border-radius: 8px;
+      font-size: 0.97rem; font-weight: 700; cursor: pointer;
+      background: #0C2F56; color: #FFFFFF;
+      transition: background 0.18s, opacity 0.18s;
+      letter-spacing: 0.02em;
+    }
+    #btn-generate:hover { background: #152A4E; }
+    #btn-generate:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── Progress ─────────────────────────────────────────────────────────── */
+    #progress-wrap { display: none; margin-bottom: 0.75rem; }
+    #progress-bar-bg { background: #EEF3F8; border-radius: 999px; height: 8px; overflow: hidden; }
+    #progress-bar { height: 100%; background: #F2CC56; border-radius: 999px; width: 0%; transition: width 0.2s; }
+    #progress-label { font-size: 0.78rem; color: #4a5e74; margin-top: 0.35rem; text-align: center; }
+
+    /* ── Output legend ───────────────────────────────────────────────────── */
+    .output-legend { display: none; font-size: 0.8rem; color: #4a5e74; line-height: 1.9; }
+    .output-legend span { font-weight: 700; color: #0C2F56; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="masthead">
+    <div class="eyebrow">Exam Generator</div>
+    <h1>MCQer <em>v8</em></h1>
+    <p class="subtitle">Upload questions and an optional PDF coversheet. Downloads versioned answer keys and test forms as DOCX + PDF.</p>
+  </div>
+
+  <div class="upload-section">
+    <div class="upload-label">Questions document</div>
+    <div class="drop-zone" id="drop-zone-q">
+      <svg width="32" height="32" fill="none" viewBox="0 0 24 24" stroke="#C8D8E8" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+      </svg>
+      <p><span class="cta">Choose a .docx file</span> or drag it here</p>
+      <p class="hint">Paragraphs: [Question.] … [Answer.] … [Distractor.] … [Page break.] [Only Version X.] [Option.] [Each version take N of the following options.] supported</p>
+    </div>
+    <input type="file" id="file-input-q" accept=".docx" />
+  </div>
+
+  <div class="upload-section">
+    <div class="upload-label">
+      PDF Coversheet
+      <span class="optional">optional</span>
+    </div>
+    <div class="drop-zone compact" id="drop-zone-c">
+      <p><span class="cta">Choose a PDF coversheet</span> or drag it here</p>
+      <p class="hint">Prepended to all PDF outputs as-is. Docx outputs have no coversheet.</p>
+    </div>
+    <input type="file" id="file-input-c" accept=".pdf" />
+  </div>
+
+  <div id="status"></div>
+
+  <!-- Format reference — shown after questions are loaded -->
+  <div id="format-ref">
+    <div class="format-header">Expected output format</div>
+    <div class="format-body">
+      <div class="fmt-version">Version A</div>
+      <div class="fmt-q">1. What is the primary function of the mitochondria in a cell?</div>
+      <div class="fmt-opt answer">(b) Energy production.</div>
+      <div class="fmt-opt">(a) Protein synthesis.</div>
+      <div class="fmt-opt">(c) DNA replication.</div>
+      <div class="fmt-opt">(d) Cell division.</div>
+      <hr class="fmt-divider">
+      <div class="fmt-sa">2. Describe the role of the mitochondria in cellular respiration.</div>
+      <div class="fmt-sa-note">No options — long-answer question; students write below.</div>
+      <hr class="fmt-divider">
+      <div style="text-align:center"><span class="fmt-pb">— Page break —</span></div>
+      <hr class="fmt-divider" style="margin-top:0.6rem">
+      <div style="font-size:0.74rem; color:#7a8fa6; margin-top:0.2rem">
+        Answer key only: correct answer is prefixed <strong style="color:#D4A800">[Answer.]</strong> —
+        test form shows identical options with no marker.<br>
+        <strong style="color:#B2241A">[Only Version X.]</strong> before a question restricts it to that version only.<br>
+        <strong style="color:#B2241A">[Each version take N of the following options.]</strong> followed by
+        <strong style="color:#B2241A">[Option.]</strong> paragraphs distributes questions evenly across versions.
+      </div>
+    </div>
+  </div>
+
+  <div id="preview">
+    <div class="preview-header">Questions found (<span id="q-count">0</span>)</div>
+    <div id="preview-list"></div>
+  </div>
+
+  <div class="version-row" id="version-row">
+    <label>Exam versions:</label>
+    <div class="version-stepper">
+      <button id="btn-minus" type="button">−</button>
+      <span id="version-display">3</span>
+      <button id="btn-plus" type="button">+</button>
+    </div>
+    <div class="version-badges" id="version-badges"></div>
+  </div>
+
+  <div id="btn-row">
+    <button id="btn-generate">⬇ Download All Versions</button>
+  </div>
+
+  <div id="progress-wrap">
+    <div id="progress-bar-bg"><div id="progress-bar"></div></div>
+    <div id="progress-label">Preparing…</div>
+  </div>
+
+  <div class="output-legend" id="output-legend"></div>
+</div>
+
+<script>
+(function () {
+
+  // ── DOM ───────────────────────────────────────────────────────────────────
+  const dropQ       = document.getElementById('drop-zone-q');
+  const inputQ      = document.getElementById('file-input-q');
+  const dropC       = document.getElementById('drop-zone-c');
+  const inputC      = document.getElementById('file-input-c');
+  const statusEl    = document.getElementById('status');
+  const previewEl   = document.getElementById('preview');
+  const previewList = document.getElementById('preview-list');
+  const qCountEl    = document.getElementById('q-count');
+  const versionRow  = document.getElementById('version-row');
+  const btnMinus    = document.getElementById('btn-minus');
+  const btnPlus     = document.getElementById('btn-plus');
+  const versionDisp = document.getElementById('version-display');
+  const versionBadges = document.getElementById('version-badges');
+  const btnRow      = document.getElementById('btn-row');
+  const btnGenerate = document.getElementById('btn-generate');
+  const progressWrap  = document.getElementById('progress-wrap');
+  const progressBar   = document.getElementById('progress-bar');
+  const progressLbl   = document.getElementById('progress-label');
+  const legendEl    = document.getElementById('output-legend');
+
+  const VERSION_LABELS = ['A','B','C','D','E'];
+  const MIN_V = 2, MAX_V = 5, DEF_V = 3;
+
+  let parsedQuestions    = [];   // parsed question objects
+  let hasVersionXTag     = false; // whether source doc contains [Version X]
+  let coversheetPdfBytes = null;  // ArrayBuffer of uploaded PDF coversheet
+  let numVersions        = DEF_V;
+
+  // ── Utilities ─────────────────────────────────────────────────────────────
+  function setStatus(msg, type) { statusEl.textContent = msg; statusEl.className = type; }
+  function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+  function setProgress(pct, label) {
+    progressBar.style.width = pct + '%';
+    progressLbl.textContent = label;
+  }
+
+  // ── Drag-and-drop wiring ─────────────────────────────────────────────────
+  function wireDrop(zone, input, onFile) {
+    zone.addEventListener('click', () => input.click());
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('dragover');
+      if (e.dataTransfer.files[0]) onFile(e.dataTransfer.files[0]);
+    });
+    input.addEventListener('change', () => { if (input.files[0]) onFile(input.files[0]); });
+  }
+
+  // ── Questions file ────────────────────────────────────────────────────────
+  wireDrop(dropQ, inputQ, handleQuestionsFile);
+
+  function handleQuestionsFile(file) {
+    if (!file.name.endsWith('.docx')) { setStatus('Please upload a .docx file.', 'error'); return; }
+    setStatus('Reading questions…', 'info');
+    parsedQuestions = [];
+    previewEl.style.display   = 'none';
+    versionRow.style.display  = 'none';
+    btnRow.style.display      = 'none';
+    legendEl.style.display    = 'none';
+    document.getElementById('format-ref').style.display = 'none';
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      mammoth.extractRawText({ arrayBuffer: e.target.result })
+        .then(result => {
+          const rawParas = result.value.split(/\n+/).map(p => p.trim()).filter(Boolean);
+
+          // Detect whether [Version X] appears anywhere in the source
+          hasVersionXTag = rawParas.some(p => p.includes('[Version X]'));
+
+          // Filter out the bare [Version X] paragraph — handled separately
+          const questionParas = rawParas.filter(p => p.trim() !== '[Version X]');
+
+          // Parse into a flat list that may include option-pool items
+          parsedQuestions = parseAllParagraphs(questionParas);
+
+          const allQ = parsedQuestions.flatMap(item =>
+            item.type === 'option-pool' ? item.questions : item.type === 'question' ? [item] : []
+          );
+          if (!allQ.length) {
+            setStatus('No valid [Question.] paragraphs found.', 'error'); return;
+          }
+
+          const mcqCount   = allQ.filter(q => q.distractors.length > 0).length;
+          const saCount    = allQ.length - mcqCount;
+          const pbCount    = parsedQuestions.filter(q => q.type === 'pagebreak').length;
+          const poolCount  = parsedQuestions.filter(q => q.type === 'option-pool').length;
+          const onlyCount  = allQ.filter(q => q.onlyVersion).length;
+
+          let msg = `Found ${allQ.length} question(s)`;
+          if (saCount > 0) msg += ` (${mcqCount} MCQ, ${saCount} without options)`;
+          if (onlyCount > 0) msg += `, ${onlyCount} version-specific`;
+          if (poolCount > 0) msg += `, ${poolCount} option pool(s)`;
+          if (pbCount > 0) msg += `, ${pbCount} page break(s)`;
+          msg += '. Ready to generate.';
+          setStatus(msg, 'success');
+          renderPreview();
+          dropQ.classList.add('has-file');
+          dropQ.querySelector('p:first-of-type').innerHTML = `<span class="file-name">✓ ${escHtml(file.name)}</span>`;
+          versionRow.style.display = 'flex';
+          btnRow.style.display     = 'block';
+          legendEl.style.display   = 'block';
+          document.getElementById('format-ref').style.display = 'block';
+          updateVersionUI();
+        })
+        .catch(err => setStatus('Error reading file: ' + err.message, 'error'));
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // ── Coversheet PDF file ───────────────────────────────────────────────────
+  wireDrop(dropC, inputC, handleCoversheetFile);
+
+  function handleCoversheetFile(file) {
+    if (!file.name.toLowerCase().endsWith('.pdf')) {
+      setStatus('Coversheet must be a PDF file.', 'error'); return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+      coversheetPdfBytes = e.target.result;
+      dropC.classList.add('has-file');
+      dropC.innerHTML = `<p><span class="file-name">✓ ${escHtml(file.name)}</span></p>
+        <p class="hint">Will be prepended to all PDF outputs</p>`;
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // ── Parse a single question segment (no page-break splitting) ────────────
+  // Returns { type:'question', question, answer, distractors, onlyVersion } or null
+  function parseQuestionSegment(seg, extraProps) {
+    seg = seg.trim();
+    if (!seg.includes('[Question.]')) return null;
+
+    const parts = seg.split(/(\[Question\.\]|\[Answer\.\]|\[Distractor\.\])/);
+    let question = null, answer = null;
+    const distractors = [];
+    let currentTag = null;
+
+    for (const p of parts) {
+      if (p === '[Question.]')   { currentTag = 'q'; continue; }
+      if (p === '[Answer.]')     { currentTag = 'a'; continue; }
+      if (p === '[Distractor.]') { currentTag = 'd'; continue; }
+      const val = p.trim();
+      if (!val) continue;
+      if (currentTag === 'q') question = val;
+      else if (currentTag === 'a') answer = val;
+      else if (currentTag === 'd') distractors.push(val);
+    }
+
+    if (!question) return null;
+    return { type: 'question', question, answer, distractors, ...extraProps };
+  }
+
+  // ── Parse one raw paragraph, handling [Page break.] inline ───────────────
+  // Returns array of: { type:'question'|'pagebreak', ... }
+  //   also handles [Only Version X.] and [Option.] prefixes
+  function parseParagraph(text, extraProps = {}) {
+    text = text.trim();
+    if (!text) return [];
+
+    const segments = text.split('[Page break.]');
+    const results  = [];
+
+    segments.forEach((seg, segIdx) => {
+      if (segIdx > 0) results.push({ type: 'pagebreak' });
+      seg = seg.trim();
+      if (!seg) return;
+      const q = parseQuestionSegment(seg, extraProps);
+      if (q) results.push(q);
+    });
+
+    return results;
+  }
+
+  // ── Parse all raw paragraphs, building option pools ───────────────────────
+  // Returns flat list of:
+  //   { type: 'question', ..., onlyVersion: 'A'|null }
+  //   { type: 'pagebreak' }
+  //   { type: 'option-pool', take: N, questions: [...] }
+  function parseAllParagraphs(rawParas) {
+    const items = [];
+    let i = 0;
+
+    while (i < rawParas.length) {
+      let text = rawParas[i].trim();
+
+      // ── [Each version take N of the following options.] ──────────────────
+      const poolMatch = text.match(/^\[Each version take (\d+) of the following options?\.\]$/i);
+      if (poolMatch) {
+        const take = parseInt(poolMatch[1], 10);
+        const poolQuestions = [];
+        i++;
+        // Collect all immediately following [Option.] paragraphs
+        while (i < rawParas.length) {
+          let optText = rawParas[i].trim();
+          if (!optText.startsWith('[Option.]')) break;
+          optText = optText.replace(/^\[Option\.\]\s*/, '');
+          // [Option.] paragraphs may also carry [Only Version X.] — unusual but handle it
+          let onlyVersion = null;
+          const onlyMatch = optText.match(/^\[Only Version ([A-E])\.\]\s*/i);
+          if (onlyMatch) { onlyVersion = onlyMatch[1].toUpperCase(); optText = optText.replace(onlyMatch[0], ''); }
+          const parsed = parseParagraph(optText, { onlyVersion });
+          parsed.forEach(p => { if (p.type === 'question') poolQuestions.push(p); });
+          i++;
+        }
+        items.push({ type: 'option-pool', take, questions: poolQuestions });
+        continue;
+      }
+
+      // ── [Only Version X.] prefix ─────────────────────────────────────────
+      const onlyMatch = text.match(/^\[Only Version ([A-E])\.\]\s*/i);
+      if (onlyMatch) {
+        const onlyVersion = onlyMatch[1].toUpperCase();
+        text = text.replace(onlyMatch[0], '');
+        parseParagraph(text, { onlyVersion }).forEach(p => items.push(p));
+        i++;
+        continue;
+      }
+
+      // ── [Option.] outside a pool header — treat as stray option ──────────
+      if (text.startsWith('[Option.]')) {
+        // Skip: [Option.] without a preceding pool header is ignored
+        i++;
+        continue;
+      }
+
+      // ── Normal paragraph ─────────────────────────────────────────────────
+      parseParagraph(text, { onlyVersion: null }).forEach(p => items.push(p));
+      i++;
+    }
+
+    return items;
+  }
+
+  // ── Assign option pool questions to versions ──────────────────────────────
+  // For each pool, distributes its questions across versions as evenly as
+  // possible so every version gets exactly pool.take questions.
+  // Returns a Map: pool → { [versionLabel]: [question, ...] }
+  function assignOptionPools(pools, versionLabels) {
+    const assignments = new Map();
+
+    pools.forEach(pool => {
+      const { take, questions } = pool;
+      const N = versionLabels.length;
+      const totalSlots = N * take;
+
+      // Shuffle questions for fair distribution
+      const shuffled = shuffle(questions.slice());
+
+      // Build a repeated sequence long enough to fill all slots
+      // (round-robin repetition if pool < totalSlots)
+      const sequence = [];
+      while (sequence.length < totalSlots) {
+        shuffled.forEach(q => { if (sequence.length < totalSlots) sequence.push(q); });
+      }
+
+      // Assign take questions per version
+      const versionMap = {};
+      versionLabels.forEach((lbl, vi) => {
+        versionMap[lbl] = sequence.slice(vi * take, vi * take + take);
+      });
+
+      assignments.set(pool, versionMap);
+    });
+
+    return assignments;
+  }
+
+  // ── Preview ───────────────────────────────────────────────────────────────
+  function renderPreview() {
+    previewList.innerHTML = '';
+    let qNum = 0;
+    parsedQuestions.forEach(item => {
+      if (item.type === 'pagebreak') return;
+
+      if (item.type === 'option-pool') {
+        const header = document.createElement('div');
+        header.className = 'q-item';
+        header.innerHTML = `<div class="q-text" style="color:#B2241A">
+          ↳ Option pool — each version takes ${item.take} of ${item.questions.length}</div>`;
+        previewList.appendChild(header);
+        item.questions.forEach(q => {
+          qNum++;
+          const div = document.createElement('div');
+          div.className = 'q-item';
+          div.style.paddingLeft = '1rem';
+          let optsHtml = q.distractors.length === 0
+            ? '<span class="no-opts">No options</span>'
+            : `✔ ${escHtml(q.answer)} &nbsp;|&nbsp; ${q.distractors.map(d=>escHtml(d)).join(' | ')}`;
+          div.innerHTML = `<div class="q-text">[pool] ${escHtml(q.question)}</div>
+            <div class="q-opts">${optsHtml}</div>`;
+          previewList.appendChild(div);
+        });
+        return;
+      }
+
+      if (item.type === 'question') {
+        qNum++;
+        const div = document.createElement('div');
+        div.className = 'q-item';
+        let optsHtml = item.distractors.length === 0
+          ? '<span class="no-opts">No options — will appear unscrambled</span>'
+          : `✔ ${escHtml(item.answer)} &nbsp;|&nbsp; ${item.distractors.map(d=>escHtml(d)).join(' | ')}`;
+        const tag = item.onlyVersion ? `<span style="color:#B2241A;font-size:0.75rem">[Only Version ${item.onlyVersion}]</span> ` : '';
+        div.innerHTML = `<div class="q-text">${tag}${escHtml(item.question)}</div>
+          <div class="q-opts">${optsHtml}</div>`;
+        previewList.appendChild(div);
+      }
+    });
+    qCountEl.textContent = qNum;
+    previewEl.style.display = 'block';
+  }
+
+  // ── Version stepper ───────────────────────────────────────────────────────
+  function updateVersionUI() {
+    versionDisp.textContent = numVersions;
+    btnMinus.disabled = numVersions <= MIN_V;
+    btnPlus.disabled  = numVersions >= MAX_V;
+    versionBadges.innerHTML = '';
+    VERSION_LABELS.slice(0, numVersions).forEach(l => {
+      const b = document.createElement('span');
+      b.className = 'badge'; b.textContent = 'Version ' + l;
+      versionBadges.appendChild(b);
+    });
+    let html = '';
+    VERSION_LABELS.slice(0, numVersions).forEach(l => {
+      const v = 'version' + l;
+      html += `<span>${v}_answer_key</span>.docx + .pdf &nbsp; <span>${v}_test_form</span>.docx + .pdf<br>`;
+    });
+    legendEl.innerHTML = html;
+  }
+  btnMinus.addEventListener('click', () => { if (numVersions > MIN_V) { numVersions--; updateVersionUI(); } });
+  btnPlus.addEventListener('click',  () => { if (numVersions < MAX_V) { numVersions++; updateVersionUI(); } });
+  updateVersionUI();
+
+  // ── Build paragraph list for one version ─────────────────────────────────
+  // poolAssignments: Map<pool, { [versionLabel]: [question, ...] }>
+  function buildVersionParas(versionLabel, poolAssignments) {
+    const paras = [];
+    const letters = ['a','b','c','d','e'];
+
+    paras.push({ type: 'version-label', text: 'Version ' + versionLabel });
+
+    let questionNumber = 0;
+
+    // Helper: emit one question item into paras
+    function emitQuestion(q) {
+      const isMCQ = q.answer && q.distractors.length > 0;
+      questionNumber++;
+      paras.push({ type: 'question', text: `${questionNumber}. ${q.question}`, keepWithNext: isMCQ });
+      if (!isMCQ) return;
+      const scrambled = shuffle([q.answer, ...q.distractors]);
+      scrambled.forEach((opt, idx) => {
+        paras.push({ type: 'option', text: `(${letters[idx]}) ${opt}`, isAnswer: opt === q.answer });
+      });
+    }
+
+    parsedQuestions.forEach(item => {
+      if (item.type === 'pagebreak') {
+        paras.push({ type: 'pagebreak' });
+        return;
+      }
+
+      if (item.type === 'option-pool') {
+        // Get this version's assigned questions from the pool
+        const assigned = poolAssignments.get(item)[versionLabel] || [];
+        assigned.forEach(q => emitQuestion(q));
+        return;
+      }
+
+      if (item.type === 'question') {
+        // Skip if restricted to a different version
+        if (item.onlyVersion && item.onlyVersion !== versionLabel) return;
+        emitQuestion(item);
+      }
+    });
+
+    return paras;
+  }
+
+  // ── DOCX builder ──────────────────────────────────────────────────────────
+  function makeDocxStyles() {
+    return {
+      paragraphStyles: [
+        {
+          id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+          run: { size: 28, bold: true, font: 'Calibri', color: '000000' },
+          paragraph: { spacing: { before: 240, after: 120 }, outlineLevel: 0 }
+        },
+        {
+          id: 'Heading2', name: 'Heading 2', basedOn: 'Normal', next: 'Normal', quickFormat: true,
+          run: { size: 24, bold: false, font: 'Calibri', color: '000000' },
+          paragraph: { spacing: { before: 80, after: 80 }, outlineLevel: 1 }
+        }
+      ]
+    };
+  }
+
+  function buildDocx(lib, paras, isKey) {
+    const { Document, Paragraph, TextRun, HeadingLevel, PageBreak, AlignmentType } = lib;
+
+    const children = [];
+
+    paras.forEach((p, idx) => {
+      if (p.type === 'pagebreak') {
+        children.push(new Paragraph({ children: [new PageBreak()] }));
+        return;
+      }
+
+      if (p.type === 'version-label') {
+        children.push(new Paragraph({
+          heading: HeadingLevel.HEADING_1,
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun(p.text)]
+        }));
+        return;
+      }
+
+      if (p.type === 'question') {
+        children.push(new Paragraph({
+          heading: HeadingLevel.HEADING_1,
+          // keepNext keeps this paragraph on the same page as the next one
+          keepNext: p.keepWithNext,
+          children: [new TextRun(p.text)]
+        }));
+        return;
+      }
+
+      if (p.type === 'option') {
+        // For the answer key, prefix the correct answer with [Answer.]
+        const displayText = (isKey && p.isAnswer) ? `[Answer.] ${p.text}` : p.text;
+        // Check if next para is also an option — if so, keep with it
+        const nextIsOption = idx + 1 < paras.length && paras[idx + 1].type === 'option';
+        children.push(new Paragraph({
+          heading: HeadingLevel.HEADING_2,
+          keepNext: nextIsOption,
+          children: [new TextRun(displayText)]
+        }));
+        return;
+      }
+    });
+
+    return new Document({
+      styles: makeDocxStyles(),
+      sections: [{
+        properties: {
+          page: {
+            size: { width: 12240, height: 15840 },
+            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 }
+          }
+        },
+        children
+      }]
+    });
+  }
+
+  // ── PDF builder (jsPDF) ───────────────────────────────────────────────────
+  function buildBodyPdf(paras, isKey) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+
+    const marginL = 72, marginR = 72, marginT = 72, marginB = 72;
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const maxW       = pageW - marginL - marginR;
+    const indentW    = pageW - marginL - marginR - 20; // options indented 20pt
+
+    // Measure height of a block of text at given font settings
+    function measureHeight(text, fontSize, indent) {
+      doc.setFontSize(fontSize);
+      const w = indent ? indentW : maxW;
+      const lines = doc.splitTextToSize(text, w);
+      const lineH = fontSize * 1.2;
+      return lines.length * lineH + 4; // +4 spacing after
+    }
+
+    // Measure the total height of a question group (question + all its options)
+    function groupHeight(startIdx) {
+      let h = 10 + measureHeight(paras[startIdx].text, 14, false); // question
+      let i = startIdx + 1;
+      while (i < paras.length && paras[i].type === 'option') {
+        h += measureHeight(paras[i].text, 12, true);
+        i++;
+      }
+      return h;
+    }
+
+    let y = marginT;
+
+    function newPage() { doc.addPage(); y = marginT; }
+    function ensureSpace(h) { if (y + h > pageH - marginB) newPage(); }
+
+    paras.forEach((p, idx) => {
+
+      if (p.type === 'pagebreak') {
+        newPage();
+        return;
+      }
+
+      if (p.type === 'version-label') {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(16);
+        const lines = doc.splitTextToSize(p.text, maxW);
+        const lineH = 16 * 1.2;
+        const blockH = lines.length * lineH + 12;
+        ensureSpace(blockH);
+        lines.forEach(line => {
+          doc.text(line, pageW / 2, y, { align: 'center' });
+          y += lineH;
+        });
+        y += 12;
+        return;
+      }
+
+      if (p.type === 'question') {
+        // If this question has options, pre-check the whole group fits
+        if (p.keepWithNext) {
+          const needed = groupHeight(idx);
+          ensureSpace(needed);
+        } else {
+          ensureSpace(measureHeight(p.text, 14, false) + 10);
+        }
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        y += 10;
+        const lines = doc.splitTextToSize(p.text, maxW);
+        const lineH = 14 * 1.2;
+        lines.forEach(line => { doc.text(line, marginL, y); y += lineH; });
+        y += 4;
+        return;
+      }
+
+      if (p.type === 'option') {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(12);
+        const displayText = (isKey && p.isAnswer) ? `[Answer.] ${p.text}` : p.text;
+        const lines = doc.splitTextToSize(displayText, indentW);
+        const lineH = 12 * 1.2;
+        lines.forEach(line => { doc.text(line, marginL + 20, y); y += lineH; });
+        y += 2;
+        return;
+      }
+    });
+
+    return doc.output('arraybuffer');
+  }
+
+  // ── Merge PDF coversheet + body using pdf-lib ─────────────────────────────
+  async function mergePdfs(coverBytes, bodyBytes) {
+    const { PDFDocument } = PDFLib;
+    const merged = await PDFDocument.create();
+
+    if (coverBytes) {
+      const cover = await PDFDocument.load(coverBytes);
+      const indices = cover.getPageIndices();
+      const pages = await merged.copyPages(cover, indices);
+      pages.forEach(p => merged.addPage(p));
+    }
+
+    const body = await PDFDocument.load(bodyBytes);
+    const indices = body.getPageIndices();
+    const pages = await merged.copyPages(body, indices);
+    pages.forEach(p => merged.addPage(p));
+
+    return merged.save(); // returns Uint8Array
+  }
+
+  // ── Download helper ───────────────────────────────────────────────────────
+  function downloadBlob(blob, filename) {
+    return new Promise(resolve => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => { URL.revokeObjectURL(url); resolve(); }, 400);
+    });
+  }
+
+  // ── Main generate ─────────────────────────────────────────────────────────
+  btnGenerate.addEventListener('click', async () => {
+    btnGenerate.disabled = true;
+    progressWrap.style.display = 'block';
+    setProgress(0, 'Starting…');
+
+    try {
+      const lib = window.docx;
+      if (!lib) throw new Error('docx library failed to load. Check your internet connection.');
+      if (!window.PDFLib) throw new Error('pdf-lib failed to load. Check your internet connection.');
+      if (!window.jspdf) throw new Error('jsPDF failed to load. Check your internet connection.');
+
+      const { Packer } = lib;
+      const versionLabels = VERSION_LABELS.slice(0, numVersions);
+
+      // Compute option pool assignments once for all versions
+      const pools = parsedQuestions.filter(p => p.type === 'option-pool');
+      const poolAssignments = assignOptionPools(pools, versionLabels);
+
+      // Steps per version: build paras, build 2 docx, pack 2 docx, build 2 pdf, merge 2 pdfs, download 4
+      const totalSteps = numVersions * 10;
+      let step = 0;
+      const tick = label => { step++; setProgress(Math.round(step / totalSteps * 100), label); };
+
+      for (let i = 0; i < numVersions; i++) {
+        const lbl   = versionLabels[i];
+        const vName = 'version' + lbl;
+
+        setProgress(Math.round(step / totalSteps * 100), `Building Version ${lbl}…`);
+
+        // Build para lists (shared scramble per version — key and form match)
+        const paras = buildVersionParas(lbl, poolAssignments);
+        tick(`Version ${lbl}: paragraphs`);
+
+        // DOCX
+        const keyDocxDoc  = buildDocx(lib, paras, true);
+        const formDocxDoc = buildDocx(lib, paras, false);
+        tick(`Version ${lbl}: docx built`);
+
+        const [keyDocxBlob, formDocxBlob] = await Promise.all([
+          Packer.toBlob(keyDocxDoc),
+          Packer.toBlob(formDocxDoc)
+        ]);
+        tick(`Version ${lbl}: docx packed`);
+
+        // PDF bodies
+        const keyBodyBuf  = buildBodyPdf(paras, true);
+        const formBodyBuf = buildBodyPdf(paras, false);
+        tick(`Version ${lbl}: pdf built`);
+
+        // Merge with coversheet
+        const keyPdfBytes  = await mergePdfs(coversheetPdfBytes, keyBodyBuf);
+        const formPdfBytes = await mergePdfs(coversheetPdfBytes, formBodyBuf);
+        tick(`Version ${lbl}: pdf merged`);
+
+        const keyPdfBlob  = new Blob([keyPdfBytes],  { type: 'application/pdf' });
+        const formPdfBlob = new Blob([formPdfBytes], { type: 'application/pdf' });
+
+        // Downloads
+        await downloadBlob(keyDocxBlob,  `${vName}_answer_key.docx`); tick(`↓ ${vName} key docx`);
+        await downloadBlob(keyPdfBlob,   `${vName}_answer_key.pdf`);  tick(`↓ ${vName} key pdf`);
+        await downloadBlob(formDocxBlob, `${vName}_test_form.docx`);  tick(`↓ ${vName} form docx`);
+        await downloadBlob(formPdfBlob,  `${vName}_test_form.pdf`);   tick(`↓ ${vName} form pdf`);
+      }
+
+      setProgress(100, 'Done!');
+      setStatus(
+        `✓ ${numVersions * 4} files downloaded — ${numVersions} versions × (answer_key + test_form) × (docx + pdf).`,
+        'success'
+      );
+    } catch (err) {
+      setStatus('Error: ' + err.message, 'error');
+      console.error(err);
+    } finally {
+      btnGenerate.disabled = false;
+      setTimeout(() => { progressWrap.style.display = 'none'; }, 3000);
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
