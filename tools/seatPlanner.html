@@ -622,8 +622,8 @@
       <div class="card-title">Student Names</div>
       <div class="card-hint">
         Column 1: name &nbsp;·&nbsp; Column 2 (optional): grade<br>
-        Column 3 (optional): any text flags the student<br>
-        for academic integrity review.
+        Column 3 (optional): any text adds a red flag<br>
+        for academic integrity observation.
       </div>
       <div class="card-status" id="status-students"></div>
     </div>
@@ -746,7 +746,7 @@
     const parts = [];
 
     if (layoutIsDefault) {
-      parts.push('<strong>Default layout active:</strong> 5 rows × 9 columns with two aisle gaps — 30 seats total. Upload a layout CSV above to override.');
+      parts.push('<strong>Default layout active:</strong> 5 rows × 9 columns with two aisle gaps — 35 seats total. Upload a layout CSV above to override.');
     }
 
     if (gradesPresent) {
