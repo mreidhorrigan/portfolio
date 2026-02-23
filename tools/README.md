@@ -2,7 +2,7 @@ These tools facilitate generating **multiple exam versions** and a **seating pla
 
 **Use them at** https://mreidhorrigan.github.io/portfolio/tools/MCQer.html and https://mreidhorrigan.github.io/portfolio/tools/seatPlanner.html
 
-The tools use no databases and do everything client-side, so have no problems that I'm aware of with data security or privacy.
+The tools use no databases and do everything client-side (in your browser), so have no problems that I'm aware of with data security or privacy.
 
 Test input files are provided in the formats called for by the tools.
 
