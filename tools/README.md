@@ -1,6 +1,6 @@
 These tools facilitate generating multiple exam versions and a seating plan.
 
-Test files are provided in the formats called for by the tools.
+Test input files are provided in the formats called for by the tools.
 
 seatPlanner was vibe coded in Claude Sonnet 4.6 at https://claude.ai/share/140e0cd9-826e-458f-b3c3-9d432c5b5d92
 
