@@ -1,6 +1,4 @@
-These tools facilitate generating multiple exam versions and a seating plan.
-
-Use them at https://mreidhorrigan.github.io/portfolio/tools/MCQer.html and https://mreidhorrigan.github.io/portfolio/tools/seatPlanner.html
+These tools facilitate generating multiple exam versions and a seating plan. Use them at https://mreidhorrigan.github.io/portfolio/tools/MCQer.html and https://mreidhorrigan.github.io/portfolio/tools/seatPlanner.html
 
 Test input files are provided in the formats called for by the tools.
 
