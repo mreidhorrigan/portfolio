@@ -4,7 +4,7 @@ These tools facilitate generating **multiple exam versions** and a **seating pla
 
 The tools use no databases and do everything client-side (in your browser), so have no problems that I'm aware of with data security or privacy.
 
-Test input files are provided in the formats called for by the tools.
+This github folder provides test input files in the formats called for by the tools. You might template from the test files.
 
 ***
 
