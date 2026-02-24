@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MCQer v7</title>
+  <title>MCQer v9</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
   <script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
   <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
@@ -202,7 +202,7 @@
 <div class="card">
   <div class="masthead">
     <div class="eyebrow">Exam Generator</div>
-    <h1>MCQer <em>v8</em></h1>
+    <h1>MCQer <em>v9</em></h1>
     <p class="subtitle">Upload questions and an optional PDF coversheet. Downloads versioned answer keys and test forms as DOCX + PDF.</p>
   </div>
 
@@ -213,7 +213,7 @@
         <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
       </svg>
       <p><span class="cta">Choose a .docx file</span> or drag it here</p>
-      <p class="hint">Paragraphs: [Question.] … [Answer.] … [Distractor.] … [Page break.] [Only Version X.] [Option.] [Each version take N of the following options.] supported</p>
+      <p class="hint">Tags: [Question.] [Answer.] [Distractor.] [Page break.] [Not a question.] [New page.] [Only Version X.] [Option.] [Each version take N of the following options.] [Scramble the order of the following options.]</p>
     </div>
     <input type="file" id="file-input-q" accept=".docx" />
   </div>
@@ -251,9 +251,14 @@
       <div style="font-size:0.74rem; color:#7a8fa6; margin-top:0.2rem">
         Answer key only: correct answer is prefixed <strong style="color:#D4A800">[Answer.]</strong> —
         test form shows identical options with no marker.<br>
+        <strong style="color:#B2241A">[Not a question.]</strong> includes paragraph as unnumbered text (no [Question.] needed).<br>
+        <strong style="color:#B2241A">[New page.]</strong> forces the following question/paragraph onto a new page.<br>
         <strong style="color:#B2241A">[Only Version X.]</strong> before a question restricts it to that version only.<br>
+        <strong style="color:#B2241A">[Page break.]</strong> after a question body leaves the rest of that page blank.<br>
         <strong style="color:#B2241A">[Each version take N of the following options.]</strong> followed by
-        <strong style="color:#B2241A">[Option.]</strong> paragraphs distributes questions evenly across versions.
+        <strong style="color:#B2241A">[Option.]</strong> distributes questions evenly across versions.<br>
+        <strong style="color:#B2241A">[Scramble the order of the following options.]</strong> followed by
+        <strong style="color:#B2241A">[Option.]</strong> includes all, in a different random order per version.
       </div>
     </div>
   </div>
@@ -374,7 +379,7 @@
           parsedQuestions = parseAllParagraphs(questionParas);
 
           const allQ = parsedQuestions.flatMap(item =>
-            item.type === 'option-pool' ? item.questions : item.type === 'question' ? [item] : []
+            (item.type === 'option-pool' || item.type === 'scramble-pool') ? item.questions : item.type === 'question' ? [item] : []
           );
           if (!allQ.length) {
             setStatus('No valid [Question.] paragraphs found.', 'error'); return;
@@ -424,10 +429,20 @@
     reader.readAsArrayBuffer(file);
   }
 
-  // ── Parse a single question segment (no page-break splitting) ────────────
-  // Returns { type:'question', question, answer, distractors, onlyVersion } or null
+  // ── Parse a single content segment (no page-break splitting) ──────────────
+  // Handles [Not a question.] and standard [Question.] paragraphs.
+  // extraProps may include: { onlyVersion, newPage }
   function parseQuestionSegment(seg, extraProps) {
     seg = seg.trim();
+    if (!seg) return null;
+
+    // [Not a question.] — unnumbered body text, no [Question.] needed
+    if (seg.startsWith('[Not a question.]')) {
+      const text = seg.replace(/^\[Not a question\.\]\s*/, '').trim();
+      if (!text) return null;
+      return { type: 'notaquestion', text, ...extraProps };
+    }
+
     if (!seg.includes('[Question.]')) return null;
 
     const parts = seg.split(/(\[Question\.\]|\[Answer\.\]|\[Distractor\.\])/);
@@ -451,8 +466,9 @@
   }
 
   // ── Parse one raw paragraph, handling [Page break.] inline ───────────────
-  // Returns array of: { type:'question'|'pagebreak', ... }
-  //   also handles [Only Version X.] and [Option.] prefixes
+  // [Page break.] after question content → blankPage:true pagebreak (leaves page blank).
+  // [Page break.] as standalone → normal page break.
+  // Returns array of: { type:'question'|'notaquestion'|'pagebreak', ... }
   function parseParagraph(text, extraProps = {}) {
     text = text.trim();
     if (!text) return [];
@@ -461,24 +477,70 @@
     const results  = [];
 
     segments.forEach((seg, segIdx) => {
-      if (segIdx > 0) results.push({ type: 'pagebreak' });
       seg = seg.trim();
-      if (!seg) return;
-      const q = parseQuestionSegment(seg, extraProps);
-      if (q) results.push(q);
+      if (segIdx === 0) {
+        if (!seg) return; // [Page break.] at very start — handled below
+        const item = parseQuestionSegment(seg, extraProps);
+        if (item) results.push(item);
+      } else {
+        // There was content before this [Page break.] (or another break)
+        // Emit a page break. blankPage=true when it immediately follows question content.
+        const prevWasContent = results.length > 0 && results[results.length - 1].type !== 'pagebreak';
+        results.push({ type: 'pagebreak', blankPage: prevWasContent });
+        if (seg) {
+          const item = parseQuestionSegment(seg, extraProps);
+          if (item) results.push(item);
+        }
+      }
     });
+
+    // Standalone [Page break.] (text was just that tag — segments=['',''])
+    if (results.length === 0 && segments.length >= 2) {
+      results.push({ type: 'pagebreak', blankPage: false });
+    }
 
     return results;
   }
 
-  // ── Parse all raw paragraphs, building option pools ───────────────────────
-  // Returns flat list of:
-  //   { type: 'question', ..., onlyVersion: 'A'|null }
-  //   { type: 'pagebreak' }
-  //   { type: 'option-pool', take: N, questions: [...] }
+  // ── Parse all raw paragraphs, building option/scramble pools ────────────────
+  // Item types:
+  //   { type: 'question',      question, answer, distractors, onlyVersion, newPage }
+  //   { type: 'notaquestion',  text, newPage }
+  //   { type: 'pagebreak',     blankPage }
+  //   { type: 'option-pool',   take: N, questions: [...] }
+  //   { type: 'scramble-pool', questions: [...] }
   function parseAllParagraphs(rawParas) {
     const items = [];
     let i = 0;
+
+    // Helper: collect immediately following [Option.] paragraphs
+    function collectOptionParas(allowQuestions) {
+      const qs = [];
+      while (i < rawParas.length) {
+        let optText = rawParas[i].trim();
+        if (!optText.startsWith('[Option.]')) break;
+        optText = optText.replace(/^\[Option\.\]\s*/, '');
+        let onlyVersion = null;
+        const onlyMatch = optText.match(/^\[Only Version ([A-E])\.\]\s*/i);
+        if (onlyMatch) { onlyVersion = onlyMatch[1].toUpperCase(); optText = optText.replace(onlyMatch[0], ''); }
+        const parsed = parseParagraph(optText, { onlyVersion, newPage: false });
+        // Transfer page-break information onto the preceding question rather than
+        // storing mixed-type items in the pool (pools contain questions only).
+        parsed.forEach((p, pi) => {
+          if (p.type === 'question' || p.type === 'notaquestion') {
+            // Check if the next parsed item is a page break — if so, carry it forward
+            const nextItem = parsed[pi + 1];
+            if (nextItem && nextItem.type === 'pagebreak') {
+              p = { ...p, pagebreakAfter: true };
+            }
+            qs.push(p);
+          }
+          // pagebreak items are intentionally not pushed — the flag on the question handles it
+        });
+        i++;
+      }
+      return qs;
+    }
 
     while (i < rawParas.length) {
       let text = rawParas[i].trim();
@@ -487,23 +549,26 @@
       const poolMatch = text.match(/^\[Each version take (\d+) of the following options?\.\]$/i);
       if (poolMatch) {
         const take = parseInt(poolMatch[1], 10);
-        const poolQuestions = [];
         i++;
-        // Collect all immediately following [Option.] paragraphs
-        while (i < rawParas.length) {
-          let optText = rawParas[i].trim();
-          if (!optText.startsWith('[Option.]')) break;
-          optText = optText.replace(/^\[Option\.\]\s*/, '');
-          // [Option.] paragraphs may also carry [Only Version X.] — unusual but handle it
-          let onlyVersion = null;
-          const onlyMatch = optText.match(/^\[Only Version ([A-E])\.\]\s*/i);
-          if (onlyMatch) { onlyVersion = onlyMatch[1].toUpperCase(); optText = optText.replace(onlyMatch[0], ''); }
-          const parsed = parseParagraph(optText, { onlyVersion });
-          parsed.forEach(p => { if (p.type === 'question') poolQuestions.push(p); });
-          i++;
-        }
+        const poolQuestions = collectOptionParas(true);
         items.push({ type: 'option-pool', take, questions: poolQuestions });
         continue;
+      }
+
+      // ── [Scramble the order of the following options.] ───────────────────
+      const scrambleMatch = text.match(/^\[Scramble the order of the following options?\.\]$/i);
+      if (scrambleMatch) {
+        i++;
+        const poolQuestions = collectOptionParas(true);
+        items.push({ type: 'scramble-pool', questions: poolQuestions });
+        continue;
+      }
+
+      // ── [New page.] prefix ───────────────────────────────────────────────
+      let newPage = false;
+      if (text.startsWith('[New page.]')) {
+        newPage = true;
+        text = text.replace(/^\[New page\.\]\s*/, '');
       }
 
       // ── [Only Version X.] prefix ─────────────────────────────────────────
@@ -511,53 +576,54 @@
       if (onlyMatch) {
         const onlyVersion = onlyMatch[1].toUpperCase();
         text = text.replace(onlyMatch[0], '');
-        parseParagraph(text, { onlyVersion }).forEach(p => items.push(p));
+        parseParagraph(text, { onlyVersion, newPage }).forEach(p => items.push(p));
         i++;
         continue;
       }
 
-      // ── [Option.] outside a pool header — treat as stray option ──────────
+      // ── [Option.] outside a pool header — skip ───────────────────────────
       if (text.startsWith('[Option.]')) {
-        // Skip: [Option.] without a preceding pool header is ignored
         i++;
         continue;
       }
 
-      // ── Normal paragraph ─────────────────────────────────────────────────
-      parseParagraph(text, { onlyVersion: null }).forEach(p => items.push(p));
+      // ── Normal paragraph (may start with [Not a question.]) ──────────────
+      parseParagraph(text, { onlyVersion: null, newPage }).forEach(p => items.push(p));
       i++;
     }
 
     return items;
   }
 
-  // ── Assign option pool questions to versions ──────────────────────────────
-  // For each pool, distributes its questions across versions as evenly as
-  // possible so every version gets exactly pool.take questions.
+  // ── Assign option/scramble pool questions to versions ────────────────────────
+  // option-pool:   distributes pool.take questions per version (evenly as possible).
+  // scramble-pool: every version gets all questions, in a freshly shuffled order.
   // Returns a Map: pool → { [versionLabel]: [question, ...] }
   function assignOptionPools(pools, versionLabels) {
     const assignments = new Map();
 
     pools.forEach(pool => {
-      const { take, questions } = pool;
-      const N = versionLabels.length;
-      const totalSlots = N * take;
-
-      // Shuffle questions for fair distribution
-      const shuffled = shuffle(questions.slice());
-
-      // Build a repeated sequence long enough to fill all slots
-      // (round-robin repetition if pool < totalSlots)
-      const sequence = [];
-      while (sequence.length < totalSlots) {
-        shuffled.forEach(q => { if (sequence.length < totalSlots) sequence.push(q); });
-      }
-
-      // Assign take questions per version
       const versionMap = {};
-      versionLabels.forEach((lbl, vi) => {
-        versionMap[lbl] = sequence.slice(vi * take, vi * take + take);
-      });
+
+      if (pool.type === 'scramble-pool') {
+        // Each version gets its own independent shuffle of the full question list
+        versionLabels.forEach(lbl => {
+          versionMap[lbl] = shuffle(pool.questions.slice());
+        });
+      } else {
+        // option-pool: round-robin distribution of take questions per version
+        const { take, questions } = pool;
+        const N = versionLabels.length;
+        const totalSlots = N * take;
+        const shuffled = shuffle(questions.slice());
+        const sequence = [];
+        while (sequence.length < totalSlots) {
+          shuffled.forEach(q => { if (sequence.length < totalSlots) sequence.push(q); });
+        }
+        versionLabels.forEach((lbl, vi) => {
+          versionMap[lbl] = sequence.slice(vi * take, vi * take + take);
+        });
+      }
 
       assignments.set(pool, versionMap);
     });
@@ -572,24 +638,40 @@
     parsedQuestions.forEach(item => {
       if (item.type === 'pagebreak') return;
 
-      if (item.type === 'option-pool') {
+      if (item.type === 'option-pool' || item.type === 'scramble-pool') {
+        const isScramble = item.type === 'scramble-pool';
         const header = document.createElement('div');
         header.className = 'q-item';
-        header.innerHTML = `<div class="q-text" style="color:#B2241A">
-          ↳ Option pool — each version takes ${item.take} of ${item.questions.length}</div>`;
+        const desc = isScramble
+          ? `Scramble pool — all ${item.questions.length} included, order shuffled per version`
+          : `Option pool — each version takes ${item.take} of ${item.questions.length}`;
+        header.innerHTML = `<div class="q-text" style="color:#B2241A">↳ ${desc}</div>`;
         previewList.appendChild(header);
         item.questions.forEach(q => {
-          qNum++;
+          if (q.type === 'question') qNum++;
           const div = document.createElement('div');
           div.className = 'q-item';
           div.style.paddingLeft = '1rem';
-          let optsHtml = q.distractors.length === 0
-            ? '<span class="no-opts">No options</span>'
-            : `✔ ${escHtml(q.answer)} &nbsp;|&nbsp; ${q.distractors.map(d=>escHtml(d)).join(' | ')}`;
-          div.innerHTML = `<div class="q-text">[pool] ${escHtml(q.question)}</div>
+          let optsHtml = q.type === 'notaquestion'
+            ? '<span class="no-opts">[Not a question]</span>'
+            : q.distractors.length === 0
+              ? '<span class="no-opts">No options</span>'
+              : `✔ ${escHtml(q.answer)} &nbsp;|&nbsp; ${q.distractors.map(d=>escHtml(d)).join(' | ')}`;
+          div.innerHTML = `<div class="q-text">[pool] ${escHtml(q.question || q.text)}</div>
             <div class="q-opts">${optsHtml}</div>`;
           previewList.appendChild(div);
         });
+        return;
+      }
+
+      if (item.type === 'notaquestion') {
+        const div = document.createElement('div');
+        div.className = 'q-item';
+        const tags = [];
+        if (item.newPage) tags.push('[New page.]');
+        const tagHtml = tags.map(t => `<span style="color:#B2241A;font-size:0.75rem">${t}</span> `).join('');
+        div.innerHTML = `<div class="q-text" style="font-style:italic;color:#7a8fa6">${tagHtml}[Not a question] ${escHtml(item.text)}</div>`;
+        previewList.appendChild(div);
         return;
       }
 
@@ -600,8 +682,11 @@
         let optsHtml = item.distractors.length === 0
           ? '<span class="no-opts">No options — will appear unscrambled</span>'
           : `✔ ${escHtml(item.answer)} &nbsp;|&nbsp; ${item.distractors.map(d=>escHtml(d)).join(' | ')}`;
-        const tag = item.onlyVersion ? `<span style="color:#B2241A;font-size:0.75rem">[Only Version ${item.onlyVersion}]</span> ` : '';
-        div.innerHTML = `<div class="q-text">${tag}${escHtml(item.question)}</div>
+        const tags = [];
+        if (item.newPage) tags.push('[New page.]');
+        if (item.onlyVersion) tags.push(`[Only Version ${item.onlyVersion}]`);
+        const tagHtml = tags.map(t => `<span style="color:#B2241A;font-size:0.75rem">${t}</span> `).join('');
+        div.innerHTML = `<div class="q-text">${tagHtml}${qNum}. ${escHtml(item.question)}</div>
           <div class="q-opts">${optsHtml}</div>`;
         previewList.appendChild(div);
       }
@@ -642,33 +727,49 @@
 
     let questionNumber = 0;
 
-    // Helper: emit one question item into paras
+    // Emit a [Not a question.] paragraph — unnumbered body text
+    function emitNaQ(item) {
+      if (item.newPage) paras.push({ type: 'pagebreak' });
+      paras.push({ type: 'notaquestion', text: item.text });
+    }
+
+    // Emit a question paragraph plus its scrambled options, then any trailing page break
     function emitQuestion(q) {
+      if (q.newPage) paras.push({ type: 'pagebreak' });
       const isMCQ = q.answer && q.distractors.length > 0;
       questionNumber++;
       paras.push({ type: 'question', text: `${questionNumber}. ${q.question}`, keepWithNext: isMCQ });
-      if (!isMCQ) return;
-      const scrambled = shuffle([q.answer, ...q.distractors]);
-      scrambled.forEach((opt, idx) => {
-        paras.push({ type: 'option', text: `(${letters[idx]}) ${opt}`, isAnswer: opt === q.answer });
-      });
+      if (isMCQ) {
+        const scrambled = shuffle([q.answer, ...q.distractors]);
+        scrambled.forEach((opt, idx) => {
+          paras.push({ type: 'option', text: `(${letters[idx]}) ${opt}`, isAnswer: opt === q.answer });
+        });
+      }
+      // [Page break.] at end of question — leave rest of page blank for student writing
+      if (q.pagebreakAfter) paras.push({ type: 'pagebreak', blankPage: true });
     }
 
     parsedQuestions.forEach(item => {
       if (item.type === 'pagebreak') {
-        paras.push({ type: 'pagebreak' });
+        paras.push({ type: 'pagebreak', blankPage: item.blankPage });
         return;
       }
 
-      if (item.type === 'option-pool') {
-        // Get this version's assigned questions from the pool
+      if (item.type === 'option-pool' || item.type === 'scramble-pool') {
         const assigned = poolAssignments.get(item)[versionLabel] || [];
-        assigned.forEach(q => emitQuestion(q));
+        assigned.forEach(q => {
+          if (q.type === 'notaquestion') emitNaQ(q);
+          else emitQuestion(q);
+        });
+        return;
+      }
+
+      if (item.type === 'notaquestion') {
+        emitNaQ(item);
         return;
       }
 
       if (item.type === 'question') {
-        // Skip if restricted to a different version
         if (item.onlyVersion && item.onlyVersion !== versionLabel) return;
         emitQuestion(item);
       }
@@ -683,7 +784,7 @@
       paragraphStyles: [
         {
           id: 'Heading1', name: 'Heading 1', basedOn: 'Normal', next: 'Normal', quickFormat: true,
-          run: { size: 28, bold: true, font: 'Calibri', color: '000000' },
+          run: { size: 24, bold: true, font: 'Calibri', color: '000000' },
           paragraph: { spacing: { before: 240, after: 120 }, outlineLevel: 0 }
         },
         {
@@ -715,10 +816,17 @@
         return;
       }
 
+      if (p.type === 'notaquestion') {
+        // Unnumbered body text — rendered as normal paragraph (no heading)
+        children.push(new Paragraph({
+          children: [new TextRun(p.text)]
+        }));
+        return;
+      }
+
       if (p.type === 'question') {
         children.push(new Paragraph({
           heading: HeadingLevel.HEADING_1,
-          // keepNext keeps this paragraph on the same page as the next one
           keepNext: p.keepWithNext,
           children: [new TextRun(p.text)]
         }));
@@ -726,9 +834,7 @@
       }
 
       if (p.type === 'option') {
-        // For the answer key, prefix the correct answer with [Answer.]
         const displayText = (isKey && p.isAnswer) ? `[Answer.] ${p.text}` : p.text;
-        // Check if next para is also an option — if so, keep with it
         const nextIsOption = idx + 1 < paras.length && paras[idx + 1].type === 'option';
         children.push(new Paragraph({
           heading: HeadingLevel.HEADING_2,
@@ -775,7 +881,7 @@
 
     // Measure the total height of a question group (question + all its options)
     function groupHeight(startIdx) {
-      let h = 10 + measureHeight(paras[startIdx].text, 14, false); // question
+      let h = 10 + measureHeight(paras[startIdx].text, 12, false); // question at 12pt
       let i = startIdx + 1;
       while (i < paras.length && paras[i].type === 'option') {
         h += measureHeight(paras[i].text, 12, true);
@@ -792,6 +898,8 @@
     paras.forEach((p, idx) => {
 
       if (p.type === 'pagebreak') {
+        // blankPage: leave rest of current page blank (for student writing space)
+        // regular:   normal page advance
         newPage();
         return;
       }
@@ -811,19 +919,32 @@
         return;
       }
 
+      if (p.type === 'notaquestion') {
+        // Unnumbered body text — same style as question but not bold
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(12);
+        const lines = doc.splitTextToSize(p.text, maxW);
+        const lineH = 12 * 1.2;
+        ensureSpace(10 + lines.length * lineH + 4);
+        y += 10;
+        lines.forEach(line => { doc.text(line, marginL, y); y += lineH; });
+        y += 4;
+        return;
+      }
+
       if (p.type === 'question') {
-        // If this question has options, pre-check the whole group fits
+        // Pre-check: whole question+options group must fit on one page
         if (p.keepWithNext) {
           const needed = groupHeight(idx);
           ensureSpace(needed);
         } else {
-          ensureSpace(measureHeight(p.text, 14, false) + 10);
+          ensureSpace(measureHeight(p.text, 12, false) + 10);
         }
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(14);
+        doc.setFontSize(12);
         y += 10;
         const lines = doc.splitTextToSize(p.text, maxW);
-        const lineH = 14 * 1.2;
+        const lineH = 12 * 1.2;
         lines.forEach(line => { doc.text(line, marginL, y); y += lineH; });
         y += 4;
         return;
@@ -891,7 +1012,7 @@
       const versionLabels = VERSION_LABELS.slice(0, numVersions);
 
       // Compute option pool assignments once for all versions
-      const pools = parsedQuestions.filter(p => p.type === 'option-pool');
+      const pools = parsedQuestions.filter(p => p.type === 'option-pool' || p.type === 'scramble-pool');
       const poolAssignments = assignOptionPools(pools, versionLabels);
 
       // Steps per version: build paras, build 2 docx, pack 2 docx, build 2 pdf, merge 2 pdfs, download 4
