@@ -12,4 +12,6 @@ seatPlanner was vibe coded in Claude Sonnet 4.6 at https://claude.ai/share/140e0
 
 MCQer was vibe coded in Claude Sonnet 4.6 at https://claude.ai/share/4acb0dc0-b113-4a90-aa49-fa8e8fc29c77
 
+Development information is also stored via PDF in this repository's vibeChats directory. 
+
 Both projects occurred 20–22 February 2026 as part of exam season.
